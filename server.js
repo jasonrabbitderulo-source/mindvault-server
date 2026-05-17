@@ -32,6 +32,7 @@ async function handleMessage(msg) {
   if (text.startsWith("/start")) { await sendWelcome(chatId, name); return; }
   if (text.startsWith("/lembretes") || text.startsWith("/list")) { await sendRemindersList(chatId); return; }
   if (text.startsWith("/ajuda") || text.startsWith("/help")) { await sendHelp(chatId); return; }
+  if (text.startsWith("/myid")) { await sendMessage(chatId, `🆔 O teu Chat ID é:\n\`${chatId}\`\n\nCopia e cola no app MindVault!`, { parse_mode: "Markdown" }); return; }
   if (text.startsWith("/limpar") || text.startsWith("/clear")) {
     users[chatId].reminders = [];
     await sendMessage(chatId, "🗑️ Todos os lembretes foram apagados.");
