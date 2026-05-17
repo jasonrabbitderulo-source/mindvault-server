@@ -66,18 +66,34 @@ async function sendRemindersList(chatId) {
 
 async function classifyAndSave(chatId, text) {
   await axios.post(`${TELEGRAM_API}/sendChatAction`, { chat_id: chatId, action: "typing" });
-  let priority = "medium", category = "personal";
+
+  const t = text.toLowerCase();
+
+  // Classificação por palavras-chave
+  let priority = "medium";
+  if (/urgente|importante|hoje|já|prazo|deadline|asap|crítico|emergência/.test(t)) priority = "high";
+  else if (/quando puder|sem pressa|talvez|eventualmente/.test(t)) priority = "low";
+
+  let category = "personal";
+  if (/pagar|conta|banco|dinheiro|fatura|transferência|imposto|salário|pagamento|cartão|finanças/.test(t)) category = "finance";
+  else if (/médico|saúde|hospital|farmácia|vitamina|exercício|consulta|remédio|clínica/.test(t)) category = "health";
+  else if (/reunião|trabalho|projeto|cliente|meeting|relatório|apresentação|empresa|chefe/.test(t)) category = "work";
+
+  // Melhorar com Gemini se disponível
   try {
     const response = await axios.post(GEMINI_URL, {
-      contents: [{ parts: [{ text: `Classifica esta mensagem. Responde APENAS JSON sem markdown:\n{"priority":"high"|"medium"|"low","category":"work"|"personal"|"health"|"finance"}\nhigh=urgente/importante, medium=normal, low=sem urgência\nwork=trabalho/reunião, personal=pessoal/família, health=saúde/médico, finance=dinheiro/pagamento\nMensagem: "${text}"` }] }]
+      contents: [{ parts: [{ text: `Classifica esta mensagem. Responde APENAS JSON sem markdown:\n{"priority":"high"|"medium"|"low","category":"work"|"personal"|"health"|"finance"}\nhigh=urgente/importante/hoje, medium=normal, low=sem urgência\nwork=trabalho/reunião, personal=pessoal/família, health=saúde/médico, finance=dinheiro/pagar/banco\nMensagem: "${text}"` }] }]
     });
     const raw = response.data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
     const c = JSON.parse(raw);
-    priority = c.priority || "medium";
-    category = c.category || "personal";
-  } catch (err) { console.error("Gemini erro:", err.message); }
+    if (c.priority) priority = c.priority;
+    if (c.category) category = c.category;
+  } catch (err) {
+    console.error("Gemini erro:", err.message);
+  }
 
   users[chatId].reminders.unshift({ id: Date.now(), text, priority, category, date: new Date().toISOString(), done: false, source: "telegram" });
+
   const pe = { high: "🔴", medium: "🟡", low: "🟢" };
   const ce = { work: "💼", personal: "👤", health: "💪", finance: "💰" };
   await sendMessage(chatId, `✅ *Lembrete guardado!*\n\n${pe[priority]} *${priority.toUpperCase()}*  ${ce[category]} *${category}*\n\n📝 ${text}\n\n_Ver todos: /lembretes_`, { parse_mode: "Markdown" });
@@ -137,7 +153,7 @@ app.get("/setup-webhook", async (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.json({ status: "✅ MindVault Server running", users: Object.keys(users).length, ai: "Gemini" });
+  res.json({ status: "✅ MindVault Server running", users: Object.keys(users).length, ai: "Gemini + Keywords" });
 });
 
 app.listen(PORT, () => console.log(`🧠 MindVault na porta ${PORT}`));
